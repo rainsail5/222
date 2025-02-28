@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全世界最可爱闪耀的女孩们</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('https://p3-bot-sign.byteimg.com/tos-cn-i-v4nquku3lp/cd039ef5e2184c83a6f681a999aa62d5.jpg~tplv-v4nquku3lp-image.image?rk3s=68e6b6b5&x-expires=1743353916&x-signature=xwR3ok99Sc1uuW97fIRxTttw8zw%3D');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-color: #ffe4e1; /* 低饱和度粉色背景 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            color: #ff1493; /* 可爱的粉色文字 */
+            text-align: center;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        label {
+            color: #ff69b4; /* 粉色文字 */
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        input[type="radio"] {
+            margin-right: 5px;
+        }
+
+        input[type="submit"] {
+            background-color: #ffb6c1; /* 粉色按钮 */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 20px;
+            color: #ff1493;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>谁是世界上最可爱的宝宝</h1>
+    <form id="myForm">
+        <label><input type="radio" name="choice" value="飒飒">飒飒</label>
+        <label><input type="radio" name="choice" value="格格">格格</label>
+        <label><input type="radio" name="choice" value="沐沐">沐沐</label>
+        <label><input type="radio" name="choice" value="礼礼">礼礼</label>
+        <input type="submit" value="提交">
+    </form>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('myForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const selectedValue = document.querySelector('input[name="choice"]:checked');
+            if (selectedValue) {
+                const resultDiv = document.getElementById('result');
+                switch (selectedValue.value) {
+                    case "飒飒":
+                        resultDiv.textContent = "飒飒：集美貌和才华于一身的律政俏佳人，我明媚又正义的大律师姐姐";
+                        break;
+                    case "格格":
+                        resultDiv.textContent = "格格：有趣的灵魂与柔软的心脏，温柔美丽的外表与细腻的性格，任何人见到都会爱上她";
+                        break;
+                    case "沐沐":
+                        resultDiv.textContent = "沐沐：似乎有无论何时都能运筹帷幄的能力，也有蹲下与小猫轻语的柔软，你应该会为她微微上扬的嘴角着迷";
+                        break;
+                    case "礼礼":
+                        resultDiv.textContent = "礼礼：被朋友们深爱着的小女孩，我想我会成为一名优秀的资深新闻工作者";
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
