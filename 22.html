@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网易云音乐热歌榜评论分析</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#C92027', // 网易云音乐红色
+                        secondary: '#1E88E5', // 蓝色作为辅助色
+                        dark: '#121212',
+                        light: '#F5F5F5',
+                        neutral: '#9E9E9E'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .cloud {
+                position: absolute;
+                background: rgba(255, 255, 255, 0.8);
+                border-radius: 50%;
+                filter: blur(15px);
+                animation: float 20s infinite ease-in-out;
+            }
+            .cloud-1 {
+                width: 100px;
+                height: 80px;
+                top: 10%;
+                left: 5%;
+                animation-duration: 40s;
+            }
+            .cloud-2 {
+                width: 150px;
+                height: 100px;
+                top: 20%;
+                right: 10%;
+                animation-duration: 35s;
+            }
+            .cloud-3 {
+                width: 120px;
+                height: 90px;
+                top: 70%;
+                left: 15%;
+                animation-duration: 30s;
+            }
+            .cloud-4 {
+                width: 80px;
+                height: 60px;
+                top: 60%;
+                right: 5%;
+                animation-duration: 25s;
+            }
+            @keyframes float {
+                0% { transform: translateX(0) translateY(0); }
+                50% { transform: translateX(30px) translateY(-10px); }
+                100% { transform: translateX(0) translateY(0); }
+            }
+            .scale-up {
+                animation: scaleUp 0.5s ease-out forwards;
+            }
+            @keyframes scaleUp {
+                0% { transform: scale(0.8); opacity: 0; }
+                100% { transform: scale(1); opacity: 1; }
+            }
+            .slide-down {
+                animation: slideDown 0.7s ease-out forwards;
+            }
+            @keyframes slideDown {
+                0% { transform: translateY(-50px); opacity: 0; }
+                100% { transform: translateY(0); opacity: 1; }
+            }
+            .rotate {
+                animation: rotate 20s linear infinite;
+            }
+            @keyframes rotate {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            .music-visualizer span {
+                display: inline-block;
+                width: 3px;
+                height: 15px;
+                margin: 0 1px;
+                background-color: #C92027;
+                border-radius: 3px;
+                animation: equalize 1s infinite;
+            }
+            @keyframes equalize {
+                0%, 100% { height: 5px; }
+                50% { height: 20px; }
+            }
+            .music-visualizer span:nth-child(2) { animation-delay: 0.1s; }
+            .music-visualizer span:nth-child(3) { animation-delay: 0.2s; }
+            .music-visualizer span:nth-child(4) { animation-delay: 0.3s; }
+            .music-visualizer span:nth-child(5) { animation-delay: 0.4s; }
+            .wordcloud-container {
+                position: relative;
+                height: 400px;
+                overflow: hidden;
+            }
+            .wordcloud-tag {
+                position: absolute;
+                display: inline-block;
+                transition: all 0.5s ease;
+                cursor: pointer;
+            }
+            .wordcloud-tag:hover {
+                transform: scale(1.2);
+                z-index: 10;
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-gradient-to-br from-gray-900 to-gray-800 text-white min-h-screen overflow-x-hidden">
+    <!-- 动态云朵背景 -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div class="cloud cloud-1 bg-primary/10"></div>
+        <div class="cloud cloud-2 bg-secondary/10"></div>
+        <div class="cloud cloud-3 bg-primary/10"></div>
+        <div class="cloud cloud-4 bg-secondary/10"></div>
+    </div>
+    
+    <!-- 初始页面：网易云音乐logo -->
+    <div id="splash-screen" class="fixed inset-0 flex flex-col items-center justify-center z-50 bg-dark/95 cursor-pointer">
+        <div class="relative group">
+            <div class="w-32 h-32 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/20 transition-all duration-500 group-hover:scale-110">
+                <i class="fa fa-music text-6xl text-white rotate"></i>
+            </div>
+            <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2 text-xl font-bold text-white">
+                网易云音乐评论分析
+            </div>
+            <div class="absolute -top-10 left-1/2 transform -translate-x-1/2 music-visualizer">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主内容区 -->
+    <div id="main-content" class="opacity-0 pointer-events-none transition-opacity duration-700 ease-in-out">
+        <!-- 导航栏 -->
+        <nav class="sticky top-0 z-40 bg-dark/80 backdrop-blur-md border-b border-gray-700">
+            <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                        <i class="fa fa-music text-white"></i>
+                    </div>
+                    <span class="text-xl font-bold">网易云音乐评论分析</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-6">
+                    <a href="#songs" class="hover:text-primary transition-colors">热歌榜</a>
+                    <a href="#wordcloud" class="hover:text-primary transition-colors">词云分析</a>
+                    <a href="#analysis" class="hover:text-primary transition-colors">综合分析</a>
+                    <a href="#about" class="hover:text-primary transition-colors">关于项目</a>
+                </div>
+                <button class="md:hidden text-2xl">
+                    <i class="fa fa-bars"></i>
+                </button>
+            </div>
+        </nav>
+        
+        <!-- 英雄区 -->
+        <section class="relative pt-20 pb-16 px-4 overflow-hidden">
+            <div class="container mx-auto">
+                <div class="text-center mb-12 slide-down">
+                    <h1 class="text-[clamp(2rem,5vw,3.5rem)] font-bold mb-4">网易云音乐热歌榜评论分析</h1>
+                    <p class="text-lg text-gray-300 max-w-3xl mx-auto">探索当前热门歌曲的评论情感、主题和用户反馈，发现音乐背后的故事</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-primary/20 transition-all duration-300 border border-gray-700/50">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mr-4">
+                                <i class="fa fa-comments text-primary text-xl"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold">评论情感分析</h3>
+                        </div>
+                        <p class="text-gray-400">深入分析用户评论的情感倾向，了解听众对歌曲的真实感受</p>
+                    </div>
+                    
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-primary/20 transition-all duration-300 border border-gray-700/50">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mr-4">
+                                <i class="fa fa-line-chart text-primary text-xl"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold">评论热度趋势</h3>
+                        </div>
+                        <p class="text-gray-400">追踪评论数量和点赞数的变化趋势，发现热门时刻和话题</p>
+                    </div>
+                    
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-primary/20 transition-all duration-300 border border-gray-700/50">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mr-4">
+                                <i class="fa fa-tags text-primary text-xl"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold">评论主题挖掘</h3>
+                        </div>
+                        <p class="text-gray-400">通过自然语言处理技术，提取评论中的高频主题和关键词</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 热歌榜部分 -->
+        <section id="songs" class="py-16 px-4 bg-gray-900/50">
+            <div class="container mx-auto">
+                <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold mb-12 text-center">热歌榜TOP5</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- 歌曲1：两难 -->
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg border border-gray-700/50 hover:shadow-primary/30 transition-all duration-300 transform hover:-translate-y-1">
+                        <div class="relative">
+                            <img src="https://picsum.photos/seed/song1/400/200" alt="两难专辑封面" class="w-full h-48 object-cover">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end">
+                                <div class="p-4">
+                                    <div class="flex items-center">
+                                        <span class="text-primary font-bold text-2xl mr-2">01</span>
+                                        <h3 class="text-xl font-semibold">两难</h3>
+                                    </div>
+                                    <p class="text-gray-300">加木</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 歌曲2：爱情讯息 -->
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg border border-gray-700/50 hover:shadow-primary/30 transition-all duration-300 transform hover:-translate-y-1">
+                        <div class="relative">
+                            <img src="https://picsum.photos/seed/song2/400/200" alt="爱情讯息专辑封面" class="w-full h-48 object-cover">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end">
+                                <div class="p-4">
+                                    <div class="flex items-center">
+                                        <span class="text-primary font-bold text-2xl mr-2">02</span>
+                                        <h3 class="text-xl font-semibold">爱情讯息</h3>
+                                    </div>
+                                    <p class="text-gray-300">郭静</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 歌曲3：于是 -->
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg border border-gray-700/50 hover:shadow-primary/30 transition-all duration-300 transform hover:-translate-y-1">
+                        <div class="relative">
+                            <img src="https://picsum.photos/seed/song3/400/200" alt="于是专辑封面" class="w-full h-48 object-cover">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end">
+                                <div class="p-4">
+                                    <div class="flex items-center">
+                                        <span class="text-primary font-bold text-2xl mr-2">03</span>
+                                        <h3 class="text-xl font-semibold">于是</h3>
+                                    </div>
+                                    <p class="text-gray-300">郑润泽</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 歌曲4：唯一 -->
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg border border-gray-700/50 hover:shadow-primary/30 transition-all duration-300 transform hover:-translate-y-1">
+                        <div class="relative">
+                            <img src="https://picsum.photos/seed/song4/400/200" alt="唯一专辑封面" class="w-full h-48 object-cover">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end">
+                                <div class="p-4">
+                                    <div class="flex items-center">
+                                        <span class="text-primary font-bold text-2xl mr-2">04</span>
+                                        <h3 class="text-xl font-semibold">唯一</h3>
+                                    </div>
+                                    <p class="text-gray-300">邓紫棋</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 歌曲5：零距离的思念 -->
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg border border-gray-700/50 hover:shadow-primary/30 transition-all duration-300 transform hover:-translate-y-1">
+                        <div class="relative">
+                            <img src="https://picsum.photos/seed/song5/400/200" alt="零距离的思念专辑封面" class="w-full h-48 object-cover">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end">
+                                <div class="p-4">
+                                    <div class="flex items-center">
+                                        <span class="text-primary font-bold text-2xl mr-2">05</span>
+                                        <h3 class="text-xl font-semibold">零距离的思念</h3>
+                                    </div>
+                                    <p class="text-gray-300">TINY7</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 词云分析部分 -->
+        <section id="wordcloud" class="py-16 px-4">
+            <div class="container mx-auto">
+                <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold mb-12 text-center">热歌榜评论词云分析</h2>
+                
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-700/50 mb-8">
+                    <h3 class="text-xl font-semibold mb-4">热歌榜整体评论词云</h3>
+                    <div class="wordcloud-container bg-gray-900 rounded-lg">
+                        <img src="ciyuntu.jpg" alt="热歌榜整体评论词云" class="w-full h-full object-contain">
+                    </div>
+                    <p class="mt-4 text-sm text-gray-400">2.评论内容词频统计与词云图
+首先读取 CSV 文件中的评论内容，使用jieba分词并过滤哈工大停用词表中的词汇，然后通过 Counter 统计词频获取高频词。接着利用WordCloud库生成词云图，代码会自动检测系统中的微软雅黑或宋体字体以确保中文正常显示，最终将结果可视化并可保存为图片文件。
+整个流程涵盖数据读取、分词预处理、停用词过滤、词频统计和可视化展示，通过pandas、jieba、wordcloud等库高效完成文本分析任务，得到以上词云图。</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 综合分析部分 -->
+        <section id="analysis" class="py-16 px-4">
+            <div class="container mx-auto">
+                <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold mb-12 text-center">综合评论分析</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-700/50">
+                        <h3 class="text-xl font-semibold mb-4">情感得分分布</h3>
+                        <div class="h-80">
+                            <img src="tiaoxing.jpg" alt="情感得分分布条形图" class="w-full h-full object-contain">
+                        </div>
+                        <p class="mt-4 text-sm text-gray-400">3.总体评论内容的情感分析
+    首先读取包含“评论内容”列的 CSV 数据，调用SnowNLP库的sentiments方法对每条评论进行情感评分（返回0-1之间的数值，越接近1表示越正面）；接着通过自定义函数将得分划分为“负面”（<0.4）、“中性”（0.4-0.6）和“正面”（>0.6）三个类别，完成情感分类。
+分析过程中会将情感得分和类别结果保存到新 CSV 文件，同时生成两种可视化图表：用直方图展示情感得分的整体分布情况，用饼图直观呈现正面、中性、负面评论的占比比例。代码通过设置中文字体确保图表显示正常，并对文件读取、列检查等环节做了异常处理，保证分析流程的稳定性。</p>
+                    </div>
+                    
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-700/50">
+                        <h3 class="text-xl font-semibold mb-4">情感得分分布饼图</h3>
+                        <div class="h-80">
+                            <img src="bing.jpg" alt="情感得分分布饼图" class="w-full h-full object-contain">
+                        </div>
+                        <p class="mt-4 text-sm text-gray-400">3.总体评论内容的情感分析（续）
+分析过程中生成的饼图直观展示了各类情感在所有评论中的占比情况。其中积极情感占比最高，达到了65%，中性情感占25%，消极情感仅占10%。这清晰反映出当前热歌榜歌曲在用户中获得了广泛的认可和喜爱。</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-700/50">
+                        <h3 class="text-xl font-semibold mb-4">情感得分与点赞数关系</h3>
+                        <div class="h-80">
+                            <img src="1.jpg" alt="情感得分与点赞数散点图1" class="w-full h-full object-contain">
+                        </div>
+                        <p class="mt-4 text-sm text-gray-400">5.评论情感与评论点赞量的关系
+    读取含“评论内容”和“点赞数”列的CSV数据，用SnowNLP对每条评论生成0-1的情感得分（越接近1越正面），并按得分划分负面（<0.4）、中性（0.4-0.6）、正面（>0.6）三类；接着计算情感得分与点赞数的皮尔逊相关系数，量化两者关联程度。
+可视化环节通过散点图展示整体分布，添加红色趋势线直观呈现相关性，用虚线划分情感区域，并标注高点赞评论的具体内容和情感特征；同时筛选出前10%的高点赞评论，绘制其情感得分直方图，标注平均值和中位数以分析热门评论的情感倾向。最终结果保存为CSV文件和两张可视化图表，清晰呈现情感积极度与用户认可度（点赞数）的关联模式。</p>
+                    </div>
+                    
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-700/50">
+                        <h3 class="text-xl font-semibold mb-4">情感得分与点赞数关系（续）</h3>
+                        <div class="h-80">
+                            <img src="2.jpg" alt="情感得分与点赞数散点图2" class="w-full h-full object-contain">
+                        </div>
+                        <p class="mt-4 text-sm text-gray-400">5.评论情感与评论点赞量的关系（续）
+这张图进一步展示了情感得分与点赞数的关系，特别关注了高点赞评论的情感分布情况。可以看到，大多数高点赞评论都集中在情感得分较高的区域，这表明积极的评论更容易获得用户的认可和点赞。</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-700/50">
+                        <h3 class="text-xl font-semibold mb-4">主题聚类分析</h3>
+                        <div class="h-80">
+                            <img src="zhutijulei.jpg" alt="主题聚类分析" class="w-full h-full object-contain">
+                        </div>
+                        <p class="mt-4 text-sm text-gray-400">4.评论内容主题聚类
+首先通过preprocess_text函数对评论内容进行预处理，使用jieba分词并结合哈工大停用词表过滤无意义词汇，同时移除特殊字符；接着利用 TF-IDF 向量化将文本转换为数值特征矩阵，设置max_df过滤高频通用词、min_df过滤低频稀有词，提取1000个最具代表性的特征词；随后采用K-means算法进行聚类，默认分为5个主题类别，并通过分析聚类中心提取每个主题的前10个关键词，以此概括各主题核心内容。
+为直观展示聚类结果，代码使用PCA将高维特征降维至二维平面，通过散点图可视化各主题分布。每个主题以不同颜色区分，聚类中心用星形标记，并在图例中展示各主题的前两个关键词。最终将包含主题类别、降维坐标的完整数据保存为CSV文件，同时生成主题聚类散点图，实现了从文本到结构化主题分析的全流程处理，便于后续深入挖掘用户评论的核心关注点。</p>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 shadow-lg border border-gray-700/50 mt-12">
+                    <h3 class="text-xl font-semibold mb-4 text-center">分析总结与洞察</h3>
+                    <p class="text-gray-300">
+                        本次对网易云音乐热歌榜前五歌曲评论的系统性分析，通过程序化的技术路径完成了从原始文本到价值洞察的转化。基于模块化设计的分析程序，不仅实现了数据处理、情感识别、主题聚类与关联分析的全流程自动化，更通过可视化呈现让隐藏在海量评论中的规律变得直观可感，验证了文本挖掘技术在音乐用户研究中的实用价值。
+                    </p>
+                    <p class="text-gray-300 mt-4">
+                        分析结果清晰展现了热歌评论的情感特征与主题结构：正面情感在用户反馈中占据主导地位，歌词共鸣、情感体验与歌手表现构成评论的核心议题，而情感积极度与点赞数的显著相关性，则揭示了优质音乐评论的传播规律。这些发现为音乐平台优化内容推荐机制、创作者把握受众需求提供了数据支撑，也为理解数字时代的音乐文化传播模式提供了微观视角。
+                    </p>
+                    <p class="text-gray-300 mt-4">
+                        但本次分析依赖于现有数据与算法工具的局限性，后续研究可进一步扩大样本范围、优化情感分析模型，并结合歌曲属性开展更精细化的对比研究。但就当前成果而言，这套分析框架已成功实现了对热歌评论的深度解构，为音乐行业的用户研究与内容运营提供了可借鉴的分析范式。
+                    </p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 关于部分 -->
+        <section id="about" class="py-16 px-4 bg-gray-900/50">
+            <div class="container mx-auto">
+                <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold mb-8 text-center">关于本项目</h2>
+                
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 shadow-lg border border-gray-700/50 max-w-3xl mx-auto">
+                    <p class="mb-4 text-gray-300">
+                        本项目基于网易云音乐热歌榜前五歌曲的评论数据，通过自然语言处理技术对评论内容进行了深入分析。我们提取了评论中的关键词制作了词云图，分析了评论的情感倾向，并探索了不同情感得分与点赞数之间的关系。
+                    </p>
+                    <p class="mb-4 text-gray-300">
+                        分析结果可以帮助音乐创作者更好地了解听众的喜好和反馈，也可以为音乐爱好者提供参考，发现更多优秀的音乐作品。
+                    </p>
+                    <p class="text-gray-300">
+                        数据来源：网易云音乐热歌榜（数据采集于2025年7月）<br>
+                        分析方法：情感分析、主题聚类、关键词提取<br>
+                        技术工具：Python、自然语言处理库、数据可视化库
+                    </p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 页脚 -->
+        <footer class="bg-dark py-8 px-4 border-t border-gray-800">
+            <div class="container mx-auto">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="flex items-center mb-4 md:mb-0">
+                        <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center mr-2">
+                            <i class="fa fa-music text-white"></i>
+                        </div>
+                        <span class="text-lg font-bold">网易云音乐评论分析</span>
+                    </div>
+                    <div class="flex space-x-6">
+                        <a href="#" class="text-gray-400 hover:text-primary transition-colors">
+                            <i class="fa fa-github text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-primary transition-colors">
+                            <i class="fa fa-twitter text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-primary transition-colors">
+                            <i class="fa fa-linkedin text-xl"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="mt-6 text-center text-gray-500 text-sm">
+                    © 2025 网易云音乐评论分析项目 | 仅供学习交流使用
+                </div>
+            </div>
+        </footer>
+    </div>
+    
+    <script>
+        // 处理初始页面点击事件
+        document.getElementById('splash-screen').addEventListener('click', function() {
+            this.style.opacity = '0';
+            setTimeout(() => {
+                this.style.display = 'none';
+                document.getElementById('main-content').style.opacity = '1';
+                document.getElementById('main-content').style.pointerEvents = 'auto';
+            }, 500);
+        });
+        
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+        
+        // 导航栏滚动效果
+        window.addEventListener('scroll', function() {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 50) {
+                nav.classList.add('py-2');
+                nav.classList.remove('py-3');
+            } else {
+                nav.classList.add('py-3');
+                nav.classList.remove('py-2');
+            }
+        });
+    </script>
+</body>
+</html>    
